@@ -4,17 +4,30 @@ using UnityEngine;
 
 public class Controller : MonoBehaviour {
 
+    class MassiveObject
+    {
+        public GameObject Object;
+        public float Mass;
+
+        public void ApplyGravity(GameObject other)
+        {
+            var s = Object.transform.position - other.transform.position;
+            Vector3 g = (G * Mass / s.sqrMagnitude) * s.normalized;
+            other.GetComponent<Rigidbody>().AddForce(g, ForceMode.Acceleration);
+        }
+    }
+
     bool _rocketFiring = false;
     float _rocketRate;
     Vector3 _cameraDefaultPosition;
     float _cameraDefaultAngle;
 
-    const float Thrust = 20f;
+    const float Thrust = 100f;
     const float Manoeuvering = 1f;
     const float G = 6.67408e-11f;
-    const float M = 1e17f;
 
-    GameObject Planet { get { return GameObject.Find("Planet"); } }
+    MassiveObject Planet;
+    MassiveObject Moon;
     GameObject Rocket { get { return GameObject.Find("Rocket"); } }
     GameObject RocketSound { get { return GameObject.Find("RocketSound"); } }
     GameObject JetSound { get { return GameObject.Find("JetSound"); } }
@@ -23,20 +36,35 @@ public class Controller : MonoBehaviour {
 
     // Use this for initialization
     void Start () {
+        Planet = new MassiveObject()
+        {
+            Object = GameObject.Find("Planet"),
+            Mass = 1e17f
+        };
+        Moon = new MassiveObject()
+        {
+            Object = GameObject.Find("Moon"),
+            Mass = 2e16f
+        };
+
+        var s = Planet.Object.transform.position - transform.position;
+        float vOrbit = Mathf.Sqrt(G * Planet.Mass / s.magnitude);
+
+        Vector3 velocity = vOrbit * Vector3.Cross(s, transform.up).normalized;
+        GetComponent<Rigidbody>().AddForce(velocity, ForceMode.VelocityChange);
+
+        s = Planet.Object.transform.position - Moon.Object.transform.position;
+        vOrbit = Mathf.Sqrt(G * Planet.Mass / s.magnitude);
+
+        velocity = vOrbit * Vector3.Cross(s, Moon.Object.transform.up).normalized;
+        Moon.Object.GetComponent<Rigidbody>().AddForce(velocity, ForceMode.VelocityChange);
+
         var rocketTrail = Rocket.GetComponent<ParticleSystem>();
         var em = rocketTrail.emission;
         _rocketRate = em.rateOverTimeMultiplier;
         em.rateOverTimeMultiplier = 0f;
 
         RocketSound.GetComponent<AudioSource>().enabled = false;
-
-        var planet = Planet;
-        var s = planet.transform.position - transform.position;
-        float vOrbit = Mathf.Sqrt(G * M / s.magnitude);
-
-        Vector3 velocity = vOrbit * Vector3.Cross(s, transform.up).normalized;
-        var myRigidBody = GetComponent<Rigidbody>();
-        myRigidBody.AddForce(velocity, ForceMode.VelocityChange);
 
         _cameraDefaultPosition = Camera.transform.localPosition;
         _cameraDefaultAngle = Vector3.Angle(Vector3.forward, -_cameraDefaultPosition);
@@ -57,13 +85,13 @@ public class Controller : MonoBehaviour {
         var cy = Input.GetAxis("RVertical");
         bool rocketFiring = Input.GetButton("Fire1");
 
-        var planet = Planet;
-        var s = planet.transform.position - transform.position;
-        Vector3 g = (G * M / s.sqrMagnitude) * s.normalized;
-        Vector3 acceleration = g;
+        Planet.ApplyGravity(Moon.Object);
+        Planet.ApplyGravity(gameObject);
+        Moon.ApplyGravity(gameObject);
 
         var rocketTrail = Rocket.GetComponent<ParticleSystem>();
         var em = rocketTrail.emission;
+        Vector3 acceleration = new Vector3();
         if (rocketFiring)
         {
             acceleration += transform.TransformVector(0f, 0f, Thrust);
