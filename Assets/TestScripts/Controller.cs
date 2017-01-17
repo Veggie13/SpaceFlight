@@ -23,6 +23,7 @@ public class Controller : MonoBehaviour {
     float _cameraDefaultAngle;
 
     const float Thrust = 100f;
+    const float Brake = 20f;
     const float Manoeuvering = 1f;
     const float G = 6.67408e-11f;
 
@@ -84,6 +85,7 @@ public class Controller : MonoBehaviour {
         var cx = Input.GetAxis("RHorizontal");
         var cy = Input.GetAxis("RVertical");
         bool rocketFiring = Input.GetButton("Fire1");
+        bool braking = Input.GetButton("Fire2");
 
         Planet.ApplyGravity(Moon.Object);
         Planet.ApplyGravity(gameObject);
@@ -108,8 +110,13 @@ public class Controller : MonoBehaviour {
         }
         _rocketFiring = rocketFiring;
 
+        if (braking)
+        {
+            acceleration += transform.TransformVector(0f, 0f, -Brake);
+        }
+
         Vector3 torque = new Vector3(z, x, -y) * Manoeuvering;
-        JetSound.GetComponent<AudioSource>().enabled = (torque.magnitude > 1e-5);
+        JetSound.GetComponent<AudioSource>().enabled = braking || (torque.magnitude > 1e-5);
 
         var myRigidBody = GetComponent<Rigidbody>();
         Vector3 relVelocity = transform.InverseTransformVector(myRigidBody.velocity);
