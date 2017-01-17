@@ -11,9 +11,14 @@ public class Controller : MonoBehaviour {
 
         public void ApplyGravity(GameObject other)
         {
-            var s = Object.transform.position - other.transform.position;
-            Vector3 g = (G * Mass / s.sqrMagnitude) * s.normalized;
+            var g = GetGravityAt(other.transform.position);
             other.GetComponent<Rigidbody>().AddForce(g, ForceMode.Acceleration);
+        }
+
+        public Vector3 GetGravityAt(Vector3 pos)
+        {
+            var s = Object.transform.position - pos;
+            return (G * Mass / s.sqrMagnitude) * s.normalized;
         }
     }
 
@@ -26,6 +31,9 @@ public class Controller : MonoBehaviour {
     const float Brake = 20f;
     const float Manoeuvering = 1f;
     const float G = 6.67408e-11f;
+    const float TrajectoryLookAhead = 20f;
+    const float TrajectoryDelta = 0.1f;
+    const int TrajectoryCount = (int)(TrajectoryLookAhead / TrajectoryDelta);
 
     MassiveObject Planet;
     MassiveObject Moon;
@@ -34,6 +42,7 @@ public class Controller : MonoBehaviour {
     GameObject JetSound { get { return GameObject.Find("JetSound"); } }
     GameObject Dust { get { return GameObject.Find("Dust"); } }
     GameObject Camera { get { return GameObject.Find("Camera"); } }
+    GameObject Trajectory { get { return GameObject.Find("Trajectory"); } }
 
     // Use this for initialization
     void Start () {
@@ -45,7 +54,7 @@ public class Controller : MonoBehaviour {
         Moon = new MassiveObject()
         {
             Object = GameObject.Find("Moon"),
-            Mass = 2e16f
+            Mass = 1e15f
         };
 
         var s = Planet.Object.transform.position - transform.position;
@@ -59,6 +68,8 @@ public class Controller : MonoBehaviour {
 
         velocity = vOrbit * Vector3.Cross(s, Moon.Object.transform.up).normalized;
         Moon.Object.GetComponent<Rigidbody>().AddForce(velocity, ForceMode.VelocityChange);
+
+        Trajectory.GetComponent<LineRenderer>().startWidth = 0.01f;
 
         var rocketTrail = Rocket.GetComponent<ParticleSystem>();
         var em = rocketTrail.emission;
@@ -128,8 +139,18 @@ public class Controller : MonoBehaviour {
         myRigidBody.AddForce(acceleration, ForceMode.Acceleration);
         myRigidBody.AddRelativeTorque(torque, ForceMode.Acceleration);
 
-        float cy2 = (1 - cy * cy) * _cameraDefaultAngle / 90f + cy;
+        Vector3 curPos = myRigidBody.transform.position;
+        Vector3 curVel = myRigidBody.velocity;
+        var trajectoryRenderer = Trajectory.GetComponent<LineRenderer>();
+        trajectoryRenderer.numPositions = TrajectoryCount;
+        for (int i = 0; i < TrajectoryCount; i++)
+        {
+            trajectoryRenderer.SetPosition(i, curPos);
+            curPos += curVel * TrajectoryDelta;
+            curVel += (Planet.GetGravityAt(curPos) + Moon.GetGravityAt(curPos)) * TrajectoryDelta;
+        }
 
+        float cy2 = (1 - cy * cy) * _cameraDefaultAngle / 90f + cy;
         var cameraDirX = Vector3.SlerpUnclamped(Vector3.back, Vector3.right, cx);
         var cameraDir = (cy2 > 0) ?
             Vector3.Slerp(cameraDirX, Vector3.up, cy2) :
